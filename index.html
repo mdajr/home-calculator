@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fixer-Upper Bid Calculator</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+<style>
+:root {
+  --bg: #f0f4f8;
+  --surface: #ffffff;
+  --border: #e2e8f0;
+  --text: #1e293b;
+  --muted: #64748b;
+  --accent: #2563eb;
+  --accent-lt: #eff6ff;
+  --green: #16a34a;
+  --red: #dc2626;
+  --amber: #d97706;
+  --r: 12px;
+  --sh: 0 1px 3px rgba(0,0,0,.08),0 4px 16px rgba(0,0,0,.04);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5}
+
+.header{background:linear-gradient(135deg,#0f2a56,#1d4ed8);color:#fff;padding:20px 32px;display:flex;align-items:center;gap:16px}
+.header h1{font-size:20px;font-weight:700;letter-spacing:-.3px}
+.header p{font-size:12px;opacity:.75;margin-top:2px}
+
+.main{max-width:1440px;margin:0 auto;padding:24px;display:grid;grid-template-columns:420px 1fr;gap:24px;align-items:start}
+@media(max-width:960px){.main{grid-template-columns:1fr;padding:16px}}
+
+.col-l{display:flex;flex-direction:column;gap:20px}
+.col-r{display:flex;flex-direction:column;gap:20px}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden}
+.card-hd{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.card-title{font-size:14px;font-weight:600}
+.card-body{padding:20px}
+
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.fg .full{grid-column:1/-1}
+.fl{display:flex;flex-direction:column;gap:4px}
+label{font-size:11px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+
+.ig{display:flex;align-items:center;border:1px solid var(--border);border-radius:8px;background:var(--bg);overflow:hidden;transition:border-color .15s}
+.ig:focus-within{border-color:var(--accent);background:#fff}
+.ig-pre,.ig-suf{padding:0 10px;font-size:13px;color:var(--muted);background:#f1f5f9;height:36px;display:flex;align-items:center;font-weight:500;flex-shrink:0}
+.ig-pre{border-right:1px solid var(--border)}
+.ig-suf{border-left:1px solid var(--border)}
+.ig input{border:none;background:transparent;flex:1;height:36px;padding:0 10px;font-size:13px;color:var(--text);outline:none;min-width:0}
+
+input[type="number"],input[type="text"],select{height:36px;padding:0 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text);background:var(--bg);outline:none;transition:border-color .15s;width:100%}
+input:focus,select:focus{border-color:var(--accent);background:#fff}
+select{cursor:pointer}
+
+.divider{height:1px;background:var(--border);margin:14px 0}
+.sec-lbl{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
+
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;border:none;transition:all .15s;white-space:nowrap}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:#1d4ed8}
+.btn-sm{padding:5px 10px;font-size:12px}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}
+.btn-ghost:hover{background:var(--bg);color:var(--text)}
+.btn-del{background:#fef2f2;color:var(--red);border:1px solid #fecaca;padding:4px 9px;font-size:13px;font-weight:700}
+.btn-del:hover{background:#fee2e2}
+
+/* Reno table */
+.tbl-wrap{overflow-x:auto}
+table.reno{width:100%;border-collapse:collapse;font-size:13px}
+table.reno th{text-align:left;padding:8px 8px;font-size:11px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--border);white-space:nowrap}
+table.reno td{padding:5px 6px;vertical-align:middle}
+table.reno tr:not(:last-child) td{border-bottom:1px solid #f8fafc}
+table.reno td:first-child{padding-left:16px}
+table.reno input[type="number"],table.reno input[type="text"]{height:30px;padding:0 7px;font-size:12px}
+table.reno select{height:30px;padding:0 6px;font-size:12px}
+
+/* Result cards */
+.res-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.rc{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+.rc .lbl{font-size:11px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px}
+.rc .val{font-size:19px;font-weight:700}
+.rc .sub{font-size:11px;color:var(--muted);margin-top:2px}
+.c-green{color:var(--green)}.c-red{color:var(--red)}.c-amber{color:var(--amber)}.c-blue{color:var(--accent)}
+
+/* Tabs */
+.tabs{display:flex;background:var(--bg);border-radius:8px;padding:3px;gap:2px;margin-bottom:14px}
+.tab{flex:1;padding:6px;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;text-align:center;border:none;background:transparent;color:var(--muted);transition:all .15s}
+.tab.on{background:#fff;color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+
+/* Stress breakdown */
+.sbox{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px}
+.srow{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px}
+.srow:not(:last-child){border-bottom:1px solid var(--border)}
+.srow .lbl{color:var(--muted)}
+.srow .amt{font-weight:600}
+
+/* Charts */
+.chart-wrap{position:relative;height:340px}
+
+/* Valuation list */
+.val-list{display:flex;flex-direction:column;gap:8px}
+.val-item{display:flex;gap:8px;align-items:center}
+.val-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+
+/* Info box */
+.infobox{background:var(--accent-lt);border:1px solid #bfdbfe;border-radius:8px;padding:10px 12px;font-size:12px;color:#1e40af;line-height:1.5}
+
+/* PMI badge */
+.pmi-note{margin-top:8px;font-size:12px;color:#1e40af;background:#eff6ff;border-radius:6px;padding:8px}
+
+/* Leftover grid */
+.leftover-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.lcard{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px}
+.lcard .lbl{font-size:11px;color:var(--muted);margin-bottom:3px}
+.lcard .val{font-size:15px;font-weight:700}
+.lcard .sub{font-size:11px;color:var(--muted)}
+
+.empty{text-align:center;padding:20px;color:var(--muted);font-size:13px}
+
+/* Break-even legend */
+.be-legend{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+.be-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 10px;border-radius:8px}
+.be-chip{font-size:11px;white-space:nowrap;padding:2px 7px;border-radius:20px;font-weight:500}
+
+.totals-row{display:flex;gap:8px;flex-wrap:wrap;padding:14px 16px;border-top:1px solid var(--border)}
+.tot-card{flex:1;min-width:100px;background:var(--bg);border-radius:8px;padding:9px 12px;border:1px solid var(--border)}
+.tot-card .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px}
+.tot-card .val{font-size:15px;font-weight:700}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>🏠 Fixer-Upper Bid Calculator</h1>
+    <p>Max bid, break-even analysis, monthly payments, and renovation scenarios — saved automatically</p>
+  </div>
+</div>
+
+<div class="main">
+  <!-- ===== LEFT COLUMN ===== -->
+  <div class="col-l">
+
+    <!-- Financial Settings -->
+    <div class="card">
+      <div class="card-hd"><span class="card-title">Financial Settings</span></div>
+      <div class="card-body">
+        <div class="fg">
+          <div class="fl full">
+            <label>Total Cash on Hand</label>
+            <div class="ig"><span class="ig-pre">$</span><input type="number" id="cashOnHand" value="150000" step="1000" min="0"></div>
+          </div>
+          <div class="fl">
+            <label>Down Payment</label>
+            <div class="ig"><input type="number" id="downPct" value="20" step="0.5" min="0" max="100"><span class="ig-suf">%</span></div>
+          </div>
+          <div class="fl">
+            <label>Mortgage Rate</label>
+            <div class="ig"><input type="number" id="mortRate" value="6.5" step="0.05" min="0"><span class="ig-suf">%</span></div>
+          </div>
+          <div class="fl">
+            <label>Property Tax Rate</label>
+            <div class="ig"><input type="number" id="propTax" value="1.8" step="0.1" min="0"><span class="ig-suf">%</span></div>
+          </div>
+          <div class="fl">
+            <label>Closing Costs</label>
+            <div class="ig"><input type="number" id="closingPct" value="3" step="0.1" min="0"><span class="ig-suf">%</span></div>
+          </div>
+          <div class="fl">
+            <label>PMI Rate (if &lt;20% down)</label>
+            <div class="ig"><input type="number" id="pmiRate" value="0.46" step="0.01" min="0"><span class="ig-suf">%</span></div>
+          </div>
+          <div class="fl">
+            <label>HOA (monthly)</label>
+            <div class="ig"><span class="ig-pre">$</span><input type="number" id="hoa" value="0" step="50" min="0"></div>
+          </div>
+          <div class="fl">
+            <label>Utilities (monthly)</label>
+            <div class="ig"><span class="ig-pre">$</span><input type="number" id="utilities" value="300" step="50" min="0"></div>
+          </div>
+          <div class="fl">
+            <label>Emergency Fund (months)</label>
+            <div class="ig"><input type="number" id="emrgMonths" value="6" step="1" min="0"><span class="ig-suf">mo</span></div>
+          </div>
+          <div class="fl">
+            <label>Min Emergency Floor</label>
+            <div class="ig"><span class="ig-pre">$</span><input type="number" id="emrgFloor" value="15000" step="1000" min="0"></div>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+        <div class="sec-lbl">Carry Costs During Construction</div>
+        <div class="fg">
+          <div class="fl">
+            <label>Construction Duration</label>
+            <div class="ig"><input type="number" id="constrMonths" value="6" step="1" min="0"><span class="ig-suf">mo</span></div>
+          </div>
+          <div class="fl">
+            <label>Extra Monthly Costs</label>
+            <div class="ig"><span class="ig-pre">$</span><input type="number" id="extraMonthly" value="2000" step="100" min="0"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Renovation Items -->
+    <div class="card">
+      <div class="card-hd">
+        <span class="card-title">Renovation Items</span>
+        <button class="btn btn-primary btn-sm" onclick="addReno()">+ Add Item</button>
+      </div>
+      <div class="tbl-wrap">
+        <table class="reno">
+          <thead>
+            <tr>
+              <th style="padding-left:16px">Item</th>
+              <th>Type</th>
+              <th>Best ($)</th>
+              <th>Avg ($)</th>
+              <th>Worst ($)</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="renoBody"></tbody>
+        </table>
+        <div id="renoEmpty" class="empty" style="display:none">No items yet. Click "+ Add Item" to start.</div>
+      </div>
+      <div class="totals-row" id="renoTotals">
+        <div class="tot-card">
+          <div class="lbl">Must-do (avg)</div>
+          <div class="val c-red" id="mustTotal">$0</div>
+        </div>
+        <div class="tot-card">
+          <div class="lbl">Want-to-do (avg)</div>
+          <div class="val c-blue" id="wantTotal">$0</div>
+        </div>
+        <div class="tot-card">
+          <div class="lbl">All items (avg)</div>
+          <div class="val" id="allTotal">$0</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Valuations -->
+    <div class="card">
+      <div class="card-hd">
+        <span class="card-title">Expected Post-Reno Valuations</span>
+        <button class="btn btn-primary btn-sm" onclick="addVal()">+ Add</button>
+      </div>
+      <div class="card-body">
+        <div id="valList" class="val-list"></div>
+        <div id="valEmpty" class="empty" style="display:none">Add expected valuations to see break-even analysis.</div>
+      </div>
+    </div>
+
+    <!-- Stress Test -->
+    <div class="card">
+      <div class="card-hd"><span class="card-title">Stress-Test a Specific Bid</span></div>
+      <div class="card-body">
+        <div class="fl" style="margin-bottom:16px">
+          <label>Bid Price</label>
+          <div class="ig"><span class="ig-pre">$</span><input type="number" id="stressBid" value="300000" step="5000" min="0"></div>
+        </div>
+        <div id="stressOut"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ===== RIGHT COLUMN ===== -->
+  <div class="col-r">
+
+    <!-- Max Bid -->
+    <div class="card">
+      <div class="card-hd"><span class="card-title">Maximum Bid Analysis</span></div>
+      <div class="card-body">
+        <div class="tabs">
+          <button class="tab on" id="t-must" onclick="setScen('must')">Must-Do Only</button>
+          <button class="tab" id="t-all" onclick="setScen('all')">Must + Want-to-Do</button>
+        </div>
+        <div class="res-grid" id="maxBidGrid"></div>
+        <div class="infobox" id="maxBidInfo"></div>
+      </div>
+    </div>
+
+    <!-- Monthly Payments -->
+    <div class="card">
+      <div class="card-hd"><span class="card-title">Monthly Payment Breakdown</span></div>
+      <div class="card-body">
+        <div class="tabs">
+          <button class="tab on" id="pt-best" onclick="setPayScen('best')">Best Case Bid</button>
+          <button class="tab" id="pt-avg" onclick="setPayScen('avg')">Avg Case Bid</button>
+          <button class="tab" id="pt-worst" onclick="setPayScen('worst')">Worst Case Bid</button>
+        </div>
+        <div id="payOut"></div>
+      </div>
+    </div>
+
+    <!-- Break-even Chart -->
+    <div class="card">
+      <div class="card-hd">
+        <span class="card-title">Break-Even Analysis</span>
+        <span style="font-size:11px;color:var(--muted)">Total investment cost vs. post-reno value</span>
+      </div>
+      <div class="card-body">
+        <div class="chart-wrap"><canvas id="beChart"></canvas></div>
+        <div id="beLegend" class="be-legend"></div>
+      </div>
+    </div>
+
+    <!-- Renovation Cost Chart -->
+    <div class="card">
+      <div class="card-hd"><span class="card-title">Renovation Cost Breakdown</span></div>
+      <div class="card-body">
+        <div class="chart-wrap"><canvas id="renoChart"></canvas></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ─── State ───────────────────────────────────────────────────────────────────
+let renos = [];
+let vals = [];
+let scen = 'must';      // 'must' | 'all'
+let payScen = 'best';   // 'best' | 'avg' | 'worst'
+let beChart = null;
+let rnChart = null;
+let rid = 0, vid = 0;
+
+const VAL_COLORS = ['#f59e0b','#8b5cf6','#06b6d4','#ec4899','#10b981'];
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+const $  = id => document.getElementById(id);
+const fv = (id, def=0) => { const v=parseFloat($(id)?.value); return isNaN(v)?def:v; };
+const fmt = (n,d=0) => n==null||isNaN(n)?'—':'$'+n.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+function mpmt(principal, annualPct, years=30) {
+  if (principal<=0) return 0;
+  const r = annualPct/100/12, n = years*12;
+  return r===0 ? principal/n : principal*r*Math.pow(1+r,n)/(Math.pow(1+r,n)-1);
+}
+
+function pmiRemovalMonth(loan, annualPct, targetLTV, purchasePrice, years=30) {
+  if (loan<=0) return null;
+  const r = annualPct/100/12, n = years*12;
+  const pmt = mpmt(loan, annualPct, years);
+  const target = targetLTV * purchasePrice;
+  for (let k=1;k<=n;k++) {
+    const fk = Math.pow(1+r,k);
+    const bal = r===0 ? loan-pmt*k : loan*fk - pmt*(fk-1)/r;
+    if (bal<=target) return k;
+  }
+  return null;
+}
+
+// ─── Construction totals ─────────────────────────────────────────────────────
+function totals() {
+  const must = renos.filter(r=>r.type==='must');
+  const sum = (arr,f) => arr.reduce((s,r)=>s+r[f],0);
+  return {
+    must: {best:sum(must,'best'),avg:sum(must,'avg'),worst:sum(must,'worst')},
+    all:  {best:sum(renos,'best'),avg:sum(renos,'avg'),worst:sum(renos,'worst')},
+  };
+}
+
+// ─── Max bid formula ──────────────────────────────────────────────────────────
+function maxBid(constrCost) {
+  const cash      = fv('cashOnHand',150000);
+  const dp        = fv('downPct',20)/100;
+  const cp        = fv('closingPct',3)/100;
+  const mr        = fv('mortRate',6.5);
+  const util      = fv('utilities',300);
+  const hoa_m     = fv('hoa',0);
+  const em        = fv('emrgMonths',6);
+  const floor_e   = fv('emrgFloor',15000);
+  const cm        = fv('constrMonths',6);
+  const extra     = fv('extraMonthly',2000);
+  const pmi_r     = fv('pmiRate',0.46)/100;
+
+  const carry     = cm * extra;
+  const lf        = 1-dp;
+  const r         = mr/100/12, n=360;
+  const mf        = r===0 ? 1/n : r*Math.pow(1+r,n)/(Math.pow(1+r,n)-1);
+  const pmiFact   = dp<0.20 ? lf*pmi_r/12 : 0;
+
+  // Case 1: floor_e >= computed months-based fund
+  const bid1 = (cash - floor_e - constrCost - carry) / (dp + cp);
+  if (bid1>0) {
+    const m1 = mpmt(bid1*lf, mr);
+    const pmi1 = bid1*pmiFact;
+    if (floor_e >= em*(m1+pmi1+util+hoa_m)) return Math.max(0,bid1);
+  }
+
+  // Case 2: emergency = months × (mortgage+PMI+util+hoa)
+  const num = cash - em*(util+hoa_m) - constrCost - carry;
+  const den = dp + cp + em*(lf*mf + pmiFact);
+  return Math.max(0, num/den);
+}
+
+function emergFund(bid) {
+  const dp  = fv('downPct',20)/100;
+  const mr  = fv('mortRate',6.5);
+  const util= fv('utilities',300);
+  const hoa_m = fv('hoa',0);
+  const em  = fv('emrgMonths',6);
+  const fl  = fv('emrgFloor',15000);
+  const pi  = fv('pmiRate',0.46)/100;
+  const lf  = 1-dp;
+  const pmiM= dp<0.20 ? bid*lf*pi/12 : 0;
+  return Math.max(fl, em*(mpmt(bid*lf,mr)+pmiM+util+hoa_m));
+}
+
+// ─── Recalculate & render ────────────────────────────────────────────────────
+function recalc() {
+  const t = totals();
+  const must = t.must, all = t.all, want = {avg: all.avg-must.avg};
+
+  $('mustTotal').textContent = fmt(must.avg);
+  $('wantTotal').textContent = fmt(want.avg);
+  $('allTotal').textContent  = fmt(all.avg);
+
+  renderMaxBid(t);
+  renderPayments(t);
+  renderStress(t);
+  drawBeChart(t);
+  drawRenoChart();
+}
+
+// ─── Max Bid Panel ────────────────────────────────────────────────────────────
+function renderMaxBid(t) {
+  const costs = scen==='must' ? t.must : t.all;
+  const bids = { best:maxBid(costs.best), avg:maxBid(costs.avg), worst:maxBid(costs.worst) };
+
+  $('maxBidGrid').innerHTML = [
+    {k:'best', lbl:'Best Case',    col:'var(--green)', constr:costs.best},
+    {k:'avg',  lbl:'Average Case', col:'var(--accent)', constr:costs.avg},
+    {k:'worst',lbl:'Worst Case',   col:'var(--red)',   constr:costs.worst},
+  ].map(s=>`
+    <div class="rc">
+      <div class="lbl">${s.lbl}</div>
+      <div class="val" style="color:${s.col};font-size:17px">${fmt(bids[s.k])}</div>
+      <div class="sub">Reno: ${fmt(s.constr)}</div>
+    </div>`).join('');
+
+  const ab = bids.avg;
+  const dp = fv('downPct',20)/100, cp = fv('closingPct',3)/100;
+  const ef = emergFund(ab);
+  const carry = fv('constrMonths',6)*fv('extraMonthly',2000);
+  $('maxBidInfo').innerHTML =
+    `<strong>Avg-case bid ${fmt(ab)}:</strong>&ensp;`+
+    `Down ${fmt(ab*dp)}&ensp;•&ensp;Closing ${fmt(ab*cp)}&ensp;•&ensp;`+
+    `Emergency fund ${fmt(ef)}&ensp;•&ensp;Carry costs ${fmt(carry)}`;
+}
+
+// ─── Payment Breakdown ────────────────────────────────────────────────────────
+function renderPayments(t) {
+  const costs = scen==='must' ? t.must : t.all;
+  const bid   = maxBid(costs[payScen]);
+  $('payOut').innerHTML = payHtml(bid);
+}
+
+function payHtml(bid) {
+  if (!bid||bid<=0) return '<p style="color:var(--muted);font-size:13px">Adjust inputs to see payments.</p>';
+  const dp  = fv('downPct',20)/100;
+  const mr  = fv('mortRate',6.5);
+  const pt  = fv('propTax',1.8)/100;
+  const hoa_m = fv('hoa',0);
+  const util= fv('utilities',300);
+  const pi  = fv('pmiRate',0.46)/100;
+  const lf  = 1-dp;
+  const loan= bid*lf;
+  const PI  = mpmt(loan,mr);
+  const tax = bid*pt/12;
+  const pmiM= dp<0.20 ? loan*pi/12 : 0;
+  const tot_w = PI+tax+pmiM+hoa_m+util;
+  const tot_wo= PI+tax+hoa_m+util;
+  const pmRm  = dp<0.20 ? pmiRemovalMonth(loan,mr,0.80,bid) : null;
+
+  const rows=[
+    ['Principal & Interest', PI],
+    ['Property Tax',         tax],
+    ...(pmiM>0?[['PMI',pmiM]]:[]),
+    ['HOA',                  hoa_m],
+    ['Utilities (est.)',     util],
+  ];
+
+  return `<div class="sbox">
+    <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Bid ${fmt(bid)} · Loan ${fmt(loan)}</div>
+    ${rows.map(([l,a])=>`<div class="srow"><span class="lbl">${l}</span><span class="amt">${fmt(a,2)}</span></div>`).join('')}
+    <div class="srow" style="margin-top:4px">
+      <span style="font-weight:700">Total / month</span>
+      <span style="font-weight:700;font-size:16px">${fmt(tot_w,2)}</span>
+    </div>
+    ${pmiM>0?`<div class="srow"><span class="lbl">After PMI removed</span><span class="amt c-green">${fmt(tot_wo,2)}/mo</span></div>`:''}
+    ${pmRm?`<div class="pmi-note">PMI removed at month <strong>${pmRm}</strong> (~${(pmRm/12).toFixed(1)} yrs) when loan balance reaches 80% of purchase price</div>`:''}
+    ${dp>=0.20?`<div class="pmi-note">No PMI — down payment ≥ 20%</div>`:''}
+  </div>`;
+}
+
+// ─── Stress Test ─────────────────────────────────────────────────────────────
+function renderStress(t) {
+  const bid = fv('stressBid',0);
+  if (!bid||bid<=0) { $('stressOut').innerHTML='<p style="color:var(--muted)">Enter a bid price to analyze.</p>'; return; }
+
+  const dp   = fv('downPct',20)/100;
+  const cp   = fv('closingPct',3)/100;
+  const cm   = fv('constrMonths',6);
+  const xm   = fv('extraMonthly',2000);
+  const cash = fv('cashOnHand',150000);
+
+  const down   = bid*dp;
+  const close  = bid*cp;
+  const carry  = cm*xm;
+  const ef     = emergFund(bid);
+  const fixed  = down+close+carry+ef;
+
+  const scenarios=[
+    {lbl:'Must-do best',  c:t.must.best},
+    {lbl:'Must-do avg',   c:t.must.avg},
+    {lbl:'Must-do worst', c:t.must.worst},
+    {lbl:'All best',      c:t.all.best},
+    {lbl:'All avg',       c:t.all.avg},
+    {lbl:'All worst',     c:t.all.worst},
+  ];
+
+  let html=`<div class="sbox">
+    <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Fixed costs for bid ${fmt(bid)}</div>
+    <div class="srow"><span class="lbl">Down Payment (${(dp*100).toFixed(0)}%)</span><span class="amt">${fmt(down)}</span></div>
+    <div class="srow"><span class="lbl">Closing Costs (${(cp*100).toFixed(0)}%)</span><span class="amt">${fmt(close)}</span></div>
+    <div class="srow"><span class="lbl">Carry Costs (${cm}mo × ${fmt(xm)})</span><span class="amt">${fmt(carry)}</span></div>
+    <div class="srow"><span class="lbl">Emergency Fund Reserved</span><span class="amt">${fmt(ef)}</span></div>
+    <div class="srow"><span style="font-weight:700">Fixed Subtotal</span><span style="font-weight:700">${fmt(fixed)}</span></div>
+  </div>
+  <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin:12px 0 8px">Leftover Cash by Scenario</div>
+  <div class="leftover-grid">`;
+
+  scenarios.forEach(s=>{
+    const left=cash-fixed-s.c;
+    const cls=left>=0?'c-green':'c-red';
+    html+=`<div class="lcard"><div class="lbl">${s.lbl}</div>
+      <div class="val ${cls}">${fmt(left)}</div>
+      <div class="sub">Reno: ${fmt(s.c)}</div></div>`;
+  });
+  html+='</div>';
+
+  // Monthly payment for this bid
+  html+=`<div style="margin-top:12px">${payHtml(bid)}</div>`;
+  $('stressOut').innerHTML=html;
+}
+
+// ─── Break-even Chart ─────────────────────────────────────────────────────────
+function drawBeChart(t) {
+  const ctx=$('beChart').getContext('2d');
+  if (beChart) { beChart.destroy(); beChart=null; }
+
+  const cp   = fv('closingPct',3)/100;
+  const carry= fv('constrMonths',6)*fv('extraMonthly',2000);
+
+  const maxX = Math.max(
+    maxBid(t.must.best), maxBid(t.all.best),
+    maxBid(t.must.avg),  maxBid(t.all.avg),
+    400000
+  ) * 1.2;
+
+  const PTS=80;
+  const xs = Array.from({length:PTS+1},(_,i)=>i*maxX/PTS);
+
+  function invLine(constr) {
+    return xs.map(x => x*(1+cp)+constr+carry);
+  }
+
+  const datasets=[
+    {label:'Must Best',  data:invLine(t.must.best),  borderColor:'#22c55e',backgroundColor:'transparent',borderWidth:2.5,pointRadius:0},
+    {label:'Must Avg',   data:invLine(t.must.avg),   borderColor:'#3b82f6',backgroundColor:'transparent',borderWidth:2.5,pointRadius:0},
+    {label:'Must Worst', data:invLine(t.must.worst), borderColor:'#ef4444',backgroundColor:'transparent',borderWidth:2.5,pointRadius:0},
+    {label:'All Best',   data:invLine(t.all.best),   borderColor:'#22c55e',backgroundColor:'transparent',borderWidth:2,  pointRadius:0,borderDash:[7,4]},
+    {label:'All Avg',    data:invLine(t.all.avg),    borderColor:'#3b82f6',backgroundColor:'transparent',borderWidth:2,  pointRadius:0,borderDash:[7,4]},
+    {label:'All Worst',  data:invLine(t.all.worst),  borderColor:'#ef4444',backgroundColor:'transparent',borderWidth:2,  pointRadius:0,borderDash:[7,4]},
+  ];
+
+  const annotations={};
+  vals.forEach((v,i)=>{
+    const col=VAL_COLORS[i%VAL_COLORS.length];
+    annotations['v'+v.id]={
+      type:'line',yMin:v.value,yMax:v.value,
+      borderColor:col,borderWidth:2.5,borderDash:[10,5],
+      label:{display:true,content:`${v.label}: ${fmt(v.value)}`,
+             position:'end',backgroundColor:col,color:'#fff',
+             font:{size:10,weight:'600'},padding:{x:6,y:3}}
+    };
+  });
+
+  beChart=new Chart(ctx,{
+    type:'line',
+    data:{labels:xs,datasets},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      interaction:{intersect:false,mode:'index'},
+      plugins:{
+        legend:{position:'bottom',labels:{font:{size:11},boxWidth:14,padding:10}},
+        annotation:{annotations},
+        tooltip:{callbacks:{
+          title:items=>`Bid: ${fmt(xs[items[0].dataIndex])}`,
+          label:c=>`${c.dataset.label}: ${fmt(c.raw)}`,
+        }},
+      },
+      scales:{
+        x:{ticks:{maxTicksLimit:8,font:{size:10},callback:(_,i)=>i%(Math.ceil(PTS/8))===0?fmt(xs[i]):''},
+           grid:{color:'#f1f5f9'}},
+        y:{ticks:{font:{size:10},callback:v=>fmt(v)},grid:{color:'#f1f5f9'},
+           title:{display:true,text:'Total Investment Cost',font:{size:10},color:'#64748b'}},
+      }
+    }
+  });
+
+  renderBeLegend(t, cp, carry);
+}
+
+function renderBeLegend(t, cp, carry) {
+  if (!vals.length) {
+    $('beLegend').innerHTML='<p style="color:var(--muted);font-size:12px">Add post-reno valuations above to see break-even bid prices.</p>';
+    return;
+  }
+  const scenPairs=[
+    {lbl:'Must Best',  c:t.must.best,  col:'#22c55e'},
+    {lbl:'Must Avg',   c:t.must.avg,   col:'#3b82f6'},
+    {lbl:'Must Worst', c:t.must.worst, col:'#ef4444'},
+    {lbl:'All Best',   c:t.all.best,   col:'#22c55e'},
+    {lbl:'All Avg',    c:t.all.avg,    col:'#3b82f6'},
+    {lbl:'All Worst',  c:t.all.worst,  col:'#ef4444'},
+  ];
+
+  $('beLegend').innerHTML = vals.map((v,vi)=>{
+    const col=VAL_COLORS[vi%VAL_COLORS.length];
+    const chips=scenPairs.map(s=>{
+      const be=(v.value-s.c-carry)/(1+cp);
+      const ok=be>0;
+      return `<span class="be-chip" style="background:${ok?s.col+'18':'#f1f5f9'};color:${ok?s.col:'#94a3b8'}">`+
+             `${ok?'✓':'✗'} ${s.lbl}: ${ok?fmt(be):'N/A'}</span>`;
+    }).join('');
+    return `<div class="be-row" style="background:${col}12;border:1px solid ${col}30">
+      <span style="font-weight:600;color:${col};font-size:12px;white-space:nowrap">${esc(v.label)} (${fmt(v.value)})</span>
+      ${chips}
+    </div>`;
+  }).join('');
+}
+
+// ─── Renovation Chart ─────────────────────────────────────────────────────────
+function drawRenoChart() {
+  const ctx=$('renoChart').getContext('2d');
+  if (rnChart) { rnChart.destroy(); rnChart=null; }
+  if (!renos.length) return;
+
+  const mustCol={best:'#86efac',avg:'#4ade80',worst:'#f87171'};
+  const wantCol={best:'#93c5fd',avg:'#60a5fa',worst:'#c084fc'};
+
+  rnChart=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:renos.map(r=>r.name||'Unnamed'),
+      datasets:[
+        {label:'Best Case', data:renos.map(r=>r.best),
+         backgroundColor:renos.map(r=>r.type==='must'?mustCol.best:wantCol.best),
+         borderColor:renos.map(r=>r.type==='must'?'#22c55e':'#3b82f6'),borderWidth:1.5},
+        {label:'Average',   data:renos.map(r=>r.avg),
+         backgroundColor:renos.map(r=>r.type==='must'?mustCol.avg:wantCol.avg),
+         borderColor:renos.map(r=>r.type==='must'?'#22c55e':'#3b82f6'),borderWidth:1.5},
+        {label:'Worst Case',data:renos.map(r=>r.worst),
+         backgroundColor:renos.map(r=>r.type==='must'?mustCol.worst:wantCol.worst),
+         borderColor:renos.map(r=>r.type==='must'?'#dc2626':'#a855f7'),borderWidth:1.5},
+      ],
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'bottom',labels:{font:{size:11},boxWidth:14,padding:10}},
+        tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${fmt(c.raw)}`}},
+      },
+      scales:{
+        x:{ticks:{font:{size:10},maxRotation:35},grid:{display:false}},
+        y:{ticks:{font:{size:10},callback:v=>fmt(v)},grid:{color:'#f1f5f9'},
+           title:{display:true,text:'Cost',font:{size:10},color:'#64748b'}},
+      }
+    }
+  });
+}
+
+// ─── Renovation CRUD ─────────────────────────────────────────────────────────
+function addReno(name='',type='must',best=0,avg=0,worst=0) {
+  renos.push({id:++rid,name,type,best,avg,worst});
+  renderRenos(); recalc(); save();
+  const rows=$('renoBody').querySelectorAll('tr');
+  if (rows.length) rows[rows.length-1].querySelector('input[type="text"]')?.focus();
+}
+
+function delReno(id) { renos=renos.filter(r=>r.id!==id); renderRenos(); recalc(); save(); }
+
+function updReno(id,f,v) {
+  const r=renos.find(r=>r.id===id); if(r) r[f]=f==='type'?v:+v||r[f];
+  // name is text, not number
+  if(f==='name') r[f]=v;
+  recalc(); save();
+}
+
+function renderRenos() {
+  const body=$('renoBody'), empty=$('renoEmpty');
+  if (!renos.length) { body.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  body.innerHTML=renos.map(r=>`
+    <tr>
+      <td><input type="text" value="${esc(r.name)}" placeholder="Item name"
+                 onchange="updReno(${r.id},'name',this.value)" style="min-width:110px"></td>
+      <td><select onchange="updReno(${r.id},'type',this.value)">
+        <option value="must" ${r.type==='must'?'selected':''}>Must</option>
+        <option value="want" ${r.type==='want'?'selected':''}>Want</option>
+      </select></td>
+      <td><input type="number" value="${r.best}" min="0" step="500" onchange="updReno(${r.id},'best',this.value)"></td>
+      <td><input type="number" value="${r.avg}"  min="0" step="500" onchange="updReno(${r.id},'avg', this.value)"></td>
+      <td><input type="number" value="${r.worst}"min="0" step="500" onchange="updReno(${r.id},'worst',this.value)"></td>
+      <td><button class="btn btn-del" onclick="delReno(${r.id})">×</button></td>
+    </tr>`).join('');
+}
+
+// ─── Valuation CRUD ───────────────────────────────────────────────────────────
+function addVal(label='New Scenario',value=400000) {
+  vals.push({id:++vid,label,value}); renderVals(); recalc(); save();
+}
+
+function delVal(id) { vals=vals.filter(v=>v.id!==id); renderVals(); recalc(); save(); }
+
+function updVal(id,f,v) {
+  const vl=vals.find(v=>v.id===id); if(vl) vl[f]=f==='label'?v:+v||vl[f];
+  recalc(); save();
+}
+
+function renderVals() {
+  const list=$('valList'), empty=$('valEmpty');
+  if (!vals.length) { list.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  list.innerHTML=vals.map((v,i)=>`
+    <div class="val-item">
+      <div class="val-dot" style="background:${VAL_COLORS[i%VAL_COLORS.length]}"></div>
+      <input type="text" value="${esc(v.label)}" placeholder="Label" style="flex:0.9"
+             onchange="updVal(${v.id},'label',this.value)">
+      <div class="ig" style="flex:1">
+        <span class="ig-pre">$</span>
+        <input type="number" value="${v.value}" min="0" step="5000"
+               onchange="updVal(${v.id},'value',this.value)">
+      </div>
+      <button class="btn btn-del" onclick="delVal(${v.id})">×</button>
+    </div>`).join('');
+}
+
+// ─── Scenario tabs ────────────────────────────────────────────────────────────
+function setScen(s) {
+  scen=s;
+  $('t-must').classList.toggle('on',s==='must');
+  $('t-all').classList.toggle('on',s==='all');
+  recalc();
+}
+function setPayScen(s) {
+  payScen=s;
+  ['best','avg','worst'].forEach(k=>$('pt-'+k).classList.toggle('on',k===s));
+  recalc();
+}
+
+// ─── Persistence ─────────────────────────────────────────────────────────────
+const INPUT_IDS=['cashOnHand','downPct','mortRate','propTax','closingPct','pmiRate',
+                 'hoa','utilities','emrgMonths','emrgFloor','constrMonths','extraMonthly','stressBid'];
+
+function save() {
+  try {
+    const snap={};
+    INPUT_IDS.forEach(id=>{ const el=$(id); if(el) snap[id]=el.value; });
+    localStorage.setItem('houseCalc2',JSON.stringify({renos,vals,rid,vid,snap}));
+  } catch(e){}
+}
+
+function load() {
+  try {
+    const d=JSON.parse(localStorage.getItem('houseCalc2')||'null');
+    if (!d) return false;
+    renos=d.renos||[]; vals=d.vals||[]; rid=d.rid||0; vid=d.vid||0;
+    if (d.snap) INPUT_IDS.forEach(id=>{ const el=$(id); if(el&&d.snap[id]!=null) el.value=d.snap[id]; });
+    return true;
+  } catch(e){ return false; }
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded',()=>{
+  const hadData=load();
+
+  if (!hadData||renos.length===0) {
+    renos=[];
+    addReno('New Roof',        'must',  8000, 12000, 18000);
+    addReno('HVAC System',     'must',  6000,  9000, 14000);
+    addReno('Electrical Panel','must',  3000,  5000,  8000);
+    addReno('Kitchen Remodel', 'want', 15000, 25000, 40000);
+    addReno('Bathroom Updates','want',  5000, 10000, 18000);
+  }
+  if (!hadData||vals.length===0) {
+    vals=[];
+    addVal('Conservative',375000);
+    addVal('Moderate',    425000);
+    addVal('Optimistic',  475000);
+  }
+
+  renderRenos(); renderVals();
+
+  INPUT_IDS.forEach(id=>{
+    const el=$(id);
+    if (el) el.addEventListener('input',()=>{ recalc(); save(); });
+  });
+
+  recalc();
+});
+</script>
+</body>
+</html>
