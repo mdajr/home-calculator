@@ -28,7 +28,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .header h1{font-size:20px;font-weight:700;letter-spacing:-.3px}
 .header p{font-size:12px;opacity:.75;margin-top:2px}
 
-.main{max-width:1440px;margin:0 auto;padding:24px;display:grid;grid-template-columns:420px 1fr;gap:24px;align-items:start}
+.main{width:100%;padding:24px;display:grid;grid-template-columns:420px 1fr;gap:24px;align-items:start}
 @media(max-width:960px){.main{grid-template-columns:1fr;padding:16px}}
 
 .col-l{display:flex;flex-direction:column;gap:20px}
@@ -369,8 +369,29 @@ function totals() {
   };
 }
 
+// ─── Valuation scenario pairing ──────────────────────────────────────────────
+// Maps best/avg/worst construction scenarios to best/avg/worst valuations so the
+// max bid is capped at the break-even point, not just raw cash affordability.
+function valScenariosForBids() {
+  if (!vals.length) return { best: null, avg: null, worst: null };
+  const sorted = [...vals].sort((a,b) => a.value - b.value);
+  const n = sorted.length;
+  const avgVal = n === 1 ? sorted[0].value
+               : n === 2 ? (sorted[0].value + sorted[1].value) / 2
+               : sorted[Math.floor(n / 2)].value;
+  return {
+    best:  sorted[n - 1].value,
+    avg:   avgVal,
+    worst: sorted[0].value,
+  };
+}
+
 // ─── Max bid formula ──────────────────────────────────────────────────────────
-function maxBid(constrCost) {
+// Returns the lower of:
+//   (a) what your cash can support for upfront costs, and
+//   (b) the break-even bid for the given expected post-reno valuation.
+// Pass valuation=null to get cash-only (uncapped) result.
+function maxBid(constrCost, valuation = null) {
   const cash      = fv('cashOnHand',150000);
   const dp        = fv('downPct',20)/100;
   const cp        = fv('closingPct',3)/100;
@@ -389,18 +410,29 @@ function maxBid(constrCost) {
   const mf        = r===0 ? 1/n : r*Math.pow(1+r,n)/(Math.pow(1+r,n)-1);
   const pmiFact   = dp<0.20 ? lf*pmi_r/12 : 0;
 
-  // Case 1: floor_e >= computed months-based fund
+  // Case 1: floor_e >= computed months-based emergency fund
   const bid1 = (cash - floor_e - constrCost - carry) / (dp + cp);
+  let cashBid;
   if (bid1>0) {
-    const m1 = mpmt(bid1*lf, mr);
+    const m1   = mpmt(bid1*lf, mr);
     const pmi1 = bid1*pmiFact;
-    if (floor_e >= em*(m1+pmi1+util+hoa_m)) return Math.max(0,bid1);
+    if (floor_e >= em*(m1+pmi1+util+hoa_m)) {
+      cashBid = Math.max(0, bid1);
+    }
+  }
+  if (cashBid === undefined) {
+    // Case 2: emergency = months × (mortgage+PMI+util+hoa)
+    const num = cash - em*(util+hoa_m) - constrCost - carry;
+    const den = dp + cp + em*(lf*mf + pmiFact);
+    cashBid = Math.max(0, num/den);
   }
 
-  // Case 2: emergency = months × (mortgage+PMI+util+hoa)
-  const num = cash - em*(util+hoa_m) - constrCost - carry;
-  const den = dp + cp + em*(lf*mf + pmiFact);
-  return Math.max(0, num/den);
+  if (valuation === null) return cashBid;
+
+  // Cap at the bid price where total investment = expected post-reno value
+  // Total investment = bid*(1+cp) + construction + carry
+  const breakEvenBid = (valuation - constrCost - carry) / (1 + cp);
+  return Math.min(cashBid, Math.max(0, breakEvenBid));
 }
 
 function emergFund(bid) {
@@ -434,34 +466,56 @@ function recalc() {
 
 // ─── Max Bid Panel ────────────────────────────────────────────────────────────
 function renderMaxBid(t) {
-  const costs = scen==='must' ? t.must : t.all;
-  const bids = { best:maxBid(costs.best), avg:maxBid(costs.avg), worst:maxBid(costs.worst) };
+  const costs  = scen==='must' ? t.must : t.all;
+  const vscens = valScenariosForBids();
+  const hasVals = vals.length > 0;
+
+  const bids = {
+    best:  maxBid(costs.best,  vscens.best),
+    avg:   maxBid(costs.avg,   vscens.avg),
+    worst: maxBid(costs.worst, vscens.worst),
+  };
+
+  // Also compute uncapped cash bids so we can show which constraint is binding
+  const cashBids = {
+    best:  maxBid(costs.best),
+    avg:   maxBid(costs.avg),
+    worst: maxBid(costs.worst),
+  };
+
+  function limitLabel(k) {
+    if (!hasVals) return 'cash-limited';
+    return bids[k] < cashBids[k] - 1 ? 'value-limited' : 'cash-limited';
+  }
 
   $('maxBidGrid').innerHTML = [
-    {k:'best', lbl:'Best Case',    col:'var(--green)', constr:costs.best},
-    {k:'avg',  lbl:'Average Case', col:'var(--accent)', constr:costs.avg},
-    {k:'worst',lbl:'Worst Case',   col:'var(--red)',   constr:costs.worst},
+    {k:'best', lbl:'Best Case',    col:'var(--green)', constr:costs.best,  val:vscens.best},
+    {k:'avg',  lbl:'Average Case', col:'var(--accent)', constr:costs.avg,  val:vscens.avg},
+    {k:'worst',lbl:'Worst Case',   col:'var(--red)',   constr:costs.worst, val:vscens.worst},
   ].map(s=>`
     <div class="rc">
       <div class="lbl">${s.lbl}</div>
       <div class="val" style="color:${s.col};font-size:17px">${fmt(bids[s.k])}</div>
-      <div class="sub">Reno: ${fmt(s.constr)}</div>
+      <div class="sub">Reno: ${fmt(s.constr)}${s.val!=null?' · Val: '+fmt(s.val):''}</div>
+      <div class="sub" style="font-style:italic">${limitLabel(s.k)}</div>
     </div>`).join('');
 
   const ab = bids.avg;
   const dp = fv('downPct',20)/100, cp = fv('closingPct',3)/100;
   const ef = emergFund(ab);
   const carry = fv('constrMonths',6)*fv('extraMonthly',2000);
+  const note = hasVals ? '' : ' <em>(add valuations above to cap by break-even)</em>';
   $('maxBidInfo').innerHTML =
     `<strong>Avg-case bid ${fmt(ab)}:</strong>&ensp;`+
     `Down ${fmt(ab*dp)}&ensp;•&ensp;Closing ${fmt(ab*cp)}&ensp;•&ensp;`+
-    `Emergency fund ${fmt(ef)}&ensp;•&ensp;Carry costs ${fmt(carry)}`;
+    `Emergency fund ${fmt(ef)}&ensp;•&ensp;Carry ${fmt(carry)}${note}`;
 }
 
 // ─── Payment Breakdown ────────────────────────────────────────────────────────
 function renderPayments(t) {
-  const costs = scen==='must' ? t.must : t.all;
-  const bid   = maxBid(costs[payScen]);
+  const costs  = scen==='must' ? t.must : t.all;
+  const vscens = valScenariosForBids();
+  const bid    = maxBid(costs[payScen], vscens[payScen]);
   $('payOut').innerHTML = payHtml(bid);
 }
 
