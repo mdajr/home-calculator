@@ -620,19 +620,17 @@ function drawBeChart(t) {
   const carry     = fv('constrMonths',6)*fv('extraMonthly',2000);
   const listPrice = fv('listPrice',0);
 
-  // X-axis: stop just past the highest break-even bid across all val/construction combos
-  const allConstrs = [t.must.best, t.must.avg, t.must.worst, t.all.best, t.all.avg, t.all.worst];
-  const allBEBids  = vals.length
-    ? vals.flatMap(v => allConstrs.map(c => (v.value - c - carry) / (1 + cp)))
-    : [];
-  const maxX = Math.max(...allBEBids, listPrice, 200000) * 1.12;
+  // X-axis: 70%–110% of list price (fallback if no list price entered)
+  const xRef  = listPrice > 0 ? listPrice : 400000;
+  const minX  = xRef * 0.70;
+  const maxX  = xRef * 1.10;
 
   // Y-axis: stop just above the highest valuation
   const maxVal = vals.length ? Math.max(...vals.map(v => v.value)) : null;
   const yMax   = maxVal ? maxVal * 1.06 : undefined;
 
   const PTS=80;
-  const xs = Array.from({length:PTS+1},(_,i)=>i*maxX/PTS);
+  const xs = Array.from({length:PTS+1},(_,i)=>minX + i*(maxX-minX)/PTS);
 
   function invLine(constr) {
     return xs.map(x => x*(1+cp)+constr+carry);
