@@ -150,6 +150,10 @@ table.reno select{height:30px;padding:0 6px;font-size:12px}
       <div class="card-body">
         <div class="fg">
           <div class="fl full">
+            <label>List Price</label>
+            <div class="ig"><span class="ig-pre">$</span><input type="number" id="listPrice" value="500000" step="5000" min="0"></div>
+          </div>
+          <div class="fl full">
             <label>Total Cash on Hand</label>
             <div class="ig"><span class="ig-pre">$</span><input type="number" id="cashOnHand" value="150000" step="1000" min="0"></div>
           </div>
@@ -612,14 +616,20 @@ function drawBeChart(t) {
   const ctx=$('beChart').getContext('2d');
   if (beChart) { beChart.destroy(); beChart=null; }
 
-  const cp   = fv('closingPct',3)/100;
-  const carry= fv('constrMonths',6)*fv('extraMonthly',2000);
+  const cp        = fv('closingPct',3)/100;
+  const carry     = fv('constrMonths',6)*fv('extraMonthly',2000);
+  const listPrice = fv('listPrice',0);
 
-  const maxX = Math.max(
-    maxBid(t.must.best), maxBid(t.all.best),
-    maxBid(t.must.avg),  maxBid(t.all.avg),
-    400000
-  ) * 1.2;
+  // X-axis: stop just past the highest break-even bid across all val/construction combos
+  const allConstrs = [t.must.best, t.must.avg, t.must.worst, t.all.best, t.all.avg, t.all.worst];
+  const allBEBids  = vals.length
+    ? vals.flatMap(v => allConstrs.map(c => (v.value - c - carry) / (1 + cp)))
+    : [];
+  const maxX = Math.max(...allBEBids, listPrice, 200000) * 1.12;
+
+  // Y-axis: stop just above the highest valuation
+  const maxVal = vals.length ? Math.max(...vals.map(v => v.value)) : null;
+  const yMax   = maxVal ? maxVal * 1.06 : undefined;
 
   const PTS=80;
   const xs = Array.from({length:PTS+1},(_,i)=>i*maxX/PTS);
@@ -638,6 +648,8 @@ function drawBeChart(t) {
   ];
 
   const annotations={};
+
+  // Horizontal valuation lines
   vals.forEach((v,i)=>{
     const col=VAL_COLORS[i%VAL_COLORS.length];
     annotations['v'+v.id]={
@@ -648,6 +660,17 @@ function drawBeChart(t) {
              font:{size:10,weight:'600'},padding:{x:6,y:3}}
     };
   });
+
+  // Vertical list price line
+  if (listPrice > 0) {
+    annotations['listPrice']={
+      type:'line',xMin:listPrice,xMax:listPrice,
+      borderColor:'#475569',borderWidth:2,borderDash:[5,4],
+      label:{display:true,content:`List: ${fmt(listPrice)}`,
+             position:'start',backgroundColor:'#475569',color:'#fff',
+             font:{size:10,weight:'600'},padding:{x:6,y:3}}
+    };
+  }
 
   beChart=new Chart(ctx,{
     type:'line',
@@ -667,6 +690,7 @@ function drawBeChart(t) {
         x:{ticks:{maxTicksLimit:8,font:{size:10},callback:(_,i)=>i%(Math.ceil(PTS/8))===0?fmt(xs[i]):''},
            grid:{color:'#f1f5f9'}},
         y:{ticks:{font:{size:10},callback:v=>fmt(v)},grid:{color:'#f1f5f9'},
+           ...(yMax ? {max:yMax} : {}),
            title:{display:true,text:'Total Investment Cost',font:{size:10},color:'#64748b'}},
       }
     }
@@ -823,7 +847,7 @@ function setPayScen(s) {
 }
 
 // ─── Persistence ─────────────────────────────────────────────────────────────
-const INPUT_IDS=['cashOnHand','downPct','mortRate','propTax','closingPct','pmiRate',
+const INPUT_IDS=['listPrice','cashOnHand','downPct','mortRate','propTax','closingPct','pmiRate',
                  'hoa','utilities','emrgMonths','emrgFloor','constrMonths','extraMonthly','stressBid'];
 
 function save() {
