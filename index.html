@@ -645,10 +645,15 @@ function drawBeChart(t) {
   const carry     = fv('constrMonths',6)*fv('extraMonthly',2000);
   const listPrice = fv('listPrice',0);
 
-  // X-axis: 70%–110% of list price (fallback if no list price entered)
-  const xRef  = listPrice > 0 ? listPrice : 400000;
-  const minX  = xRef * 0.70;
-  const maxX  = xRef * 1.10;
+  // X-axis: at minimum list ±30%/+10%, but extend to cover any break-even bid
+  // that falls outside that range so intersections are always visible.
+  const xRef    = listPrice > 0 ? listPrice : 400000;
+  const allConstrs = [t.must.best, t.must.avg, t.must.worst, t.all.best, t.all.avg, t.all.worst];
+  const beBids  = vals.length
+    ? vals.flatMap(v => allConstrs.map(c => (v.value - c - carry) / (1 + cp))).filter(b => b > 0)
+    : [];
+  const minX = xRef * 0.70;
+  const maxX = Math.max(xRef * 1.10, ...beBids.map(b => b * 1.05));
 
   // Y-axis: stop just above the highest valuation
   const maxVal = vals.length ? Math.max(...vals.map(v => v.value)) : null;
@@ -700,6 +705,7 @@ function drawBeChart(t) {
     data:{labels:xs,datasets},
     options:{
       responsive:true,maintainAspectRatio:false,
+      layout:{padding:{right:110}},
       interaction:{intersect:false,mode:'index'},
       plugins:{
         legend:{position:'bottom',labels:{font:{size:11},boxWidth:14,padding:10}},
