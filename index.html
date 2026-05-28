@@ -532,8 +532,8 @@ function payHtml(bid) {
   const PI  = mpmt(loan,mr);
   const tax = bid*pt/12;
   const pmiM= dp<0.20 ? loan*pi/12 : 0;
-  const tot_w = PI+tax+pmiM+hoa_m+util;
-  const tot_wo= PI+tax+hoa_m+util;
+  const tot_w = PI+tax+pmiM+hoa_m;
+  const tot_wo= PI+tax+hoa_m;
   const pmRm  = dp<0.20 ? pmiRemovalMonth(loan,mr,0.80,bid) : null;
 
   const rows=[
@@ -541,7 +541,6 @@ function payHtml(bid) {
     ['Property Tax',         tax],
     ...(pmiM>0?[['PMI',pmiM]]:[]),
     ['HOA',                  hoa_m],
-    ['Utilities (est.)',     util],
   ];
 
   return `<div class="sbox">
