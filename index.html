@@ -196,6 +196,19 @@ table.reno select{height:30px;padding:0 6px;font-size:12px}
         </div>
 
         <div class="divider"></div>
+        <div class="sec-lbl">Renovation Cost Adjustments</div>
+        <div class="fg">
+          <div class="fl">
+            <label>GC Markup</label>
+            <div class="ig"><input type="number" id="gcMarkupPct" value="0" step="1" min="0"><span class="ig-suf">%</span></div>
+          </div>
+          <div class="fl">
+            <label>Contingency Buffer</label>
+            <div class="ig"><input type="number" id="contingencyPct" value="10" step="1" min="0"><span class="ig-suf">%</span></div>
+          </div>
+        </div>
+
+        <div class="divider"></div>
         <div class="sec-lbl">Carry Costs During Construction</div>
         <div class="fg">
           <div class="fl">
@@ -364,11 +377,16 @@ function pmiRemovalMonth(loan, annualPct, targetLTV, purchasePrice, years=30) {
 }
 
 // ─── Construction totals ─────────────────────────────────────────────────────
+function renoMultiplier() {
+  return (1 + fv('gcMarkupPct',0)/100) * (1 + fv('contingencyPct',10)/100);
+}
+
 function totals() {
   const active = renos.filter(r=>r.enabled!==false);
   const must   = active.filter(r=>r.type==='must');
-  const sum    = (arr,f) => arr.reduce((s,r)=>s+r[f],0);
-  const cavg   = arr => arr.reduce((s,r)=>s+(r.best+r.worst)/2, 0);
+  const mult   = renoMultiplier();
+  const sum    = (arr,f) => arr.reduce((s,r)=>s+r[f],0) * mult;
+  const cavg   = arr => arr.reduce((s,r)=>s+(r.best+r.worst)/2, 0) * mult;
   return {
     must: {best:sum(must,'best'), avg:cavg(must), worst:sum(must,'worst')},
     all:  {best:sum(active,'best'),avg:cavg(active),worst:sum(active,'worst')},
@@ -459,7 +477,12 @@ function recalc() {
   const t = totals();
   const must = t.must, all = t.all, want = {avg: all.avg-must.avg};
 
-  $('mustTotal').textContent = fmt(must.avg);
+  const gc   = fv('gcMarkupPct',0);
+  const cont = fv('contingencyPct',10);
+  const multNote = (gc>0||cont>0)
+    ? ` <span style="font-size:10px;color:var(--muted);font-weight:400">(incl. ${[gc>0?`${gc}% GC`:'',cont>0?`${cont}% contingency`:''].filter(Boolean).join(' + ')})</span>`
+    : '';
+  $('mustTotal').innerHTML = fmt(must.avg) + multNote;
   $('wantTotal').textContent = fmt(want.avg);
   $('allTotal').textContent  = fmt(all.avg);
 
@@ -856,7 +879,7 @@ function setPayScen(s) {
 }
 
 // ─── Persistence ─────────────────────────────────────────────────────────────
-const INPUT_IDS=['listPrice','cashOnHand','downPct','mortRate','propTax','closingPct','pmiRate',
+const INPUT_IDS=['listPrice','cashOnHand','downPct','mortRate','propTax','closingPct','pmiRate','gcMarkupPct','contingencyPct',
                  'hoa','utilities','emrgMonths','emrgFloor','constrMonths','extraMonthly','stressBid'];
 
 function save() {
