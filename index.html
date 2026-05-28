@@ -28,7 +28,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .header h1{font-size:20px;font-weight:700;letter-spacing:-.3px}
 .header p{font-size:12px;opacity:.75;margin-top:2px}
 
-.main{width:100%;padding:24px;display:grid;grid-template-columns:480px 1fr;gap:24px;align-items:start}
+.main{width:100%;padding:24px;display:grid;grid-template-columns:560px 1fr;gap:24px;align-items:start}
 @media(max-width:960px){.main{grid-template-columns:1fr;padding:16px}}
 
 .col-l{display:flex;flex-direction:column;gap:20px}
@@ -220,7 +220,8 @@ table.reno select{height:30px;padding:0 6px;font-size:12px}
         <table class="reno">
           <thead>
             <tr>
-              <th style="padding-left:16px">Item</th>
+              <th></th>
+              <th style="padding-left:8px">Item</th>
               <th>Type</th>
               <th>Best ($)</th>
               <th>Worst ($)</th>
@@ -364,12 +365,13 @@ function pmiRemovalMonth(loan, annualPct, targetLTV, purchasePrice, years=30) {
 
 // ─── Construction totals ─────────────────────────────────────────────────────
 function totals() {
-  const must = renos.filter(r=>r.type==='must');
-  const sum  = (arr,f) => arr.reduce((s,r)=>s+r[f],0);
-  const cavg = arr => arr.reduce((s,r)=>s+(r.best+r.worst)/2, 0);
+  const active = renos.filter(r=>r.enabled!==false);
+  const must   = active.filter(r=>r.type==='must');
+  const sum    = (arr,f) => arr.reduce((s,r)=>s+r[f],0);
+  const cavg   = arr => arr.reduce((s,r)=>s+(r.best+r.worst)/2, 0);
   return {
     must: {best:sum(must,'best'), avg:cavg(must), worst:sum(must,'worst')},
-    all:  {best:sum(renos,'best'),avg:cavg(renos),worst:sum(renos,'worst')},
+    all:  {best:sum(active,'best'),avg:cavg(active),worst:sum(active,'worst')},
   };
 }
 
@@ -730,7 +732,8 @@ function renderBeLegend(t, cp, carry) {
 function drawRenoChart() {
   const ctx=$('renoChart').getContext('2d');
   if (rnChart) { rnChart.destroy(); rnChart=null; }
-  if (!renos.length) return;
+  const active = renos.filter(r=>r.enabled!==false);
+  if (!active.length) return;
 
   const mustCol={best:'#86efac',avg:'#4ade80',worst:'#f87171'};
   const wantCol={best:'#93c5fd',avg:'#60a5fa',worst:'#c084fc'};
@@ -738,17 +741,17 @@ function drawRenoChart() {
   rnChart=new Chart(ctx,{
     type:'bar',
     data:{
-      labels:renos.map(r=>r.name||'Unnamed'),
+      labels:active.map(r=>r.name||'Unnamed'),
       datasets:[
-        {label:'Best Case', data:renos.map(r=>r.best),
-         backgroundColor:renos.map(r=>r.type==='must'?mustCol.best:wantCol.best),
-         borderColor:renos.map(r=>r.type==='must'?'#22c55e':'#3b82f6'),borderWidth:1.5},
-        {label:'Average',   data:renos.map(r=>(r.best+r.worst)/2),
-         backgroundColor:renos.map(r=>r.type==='must'?mustCol.avg:wantCol.avg),
-         borderColor:renos.map(r=>r.type==='must'?'#22c55e':'#3b82f6'),borderWidth:1.5},
-        {label:'Worst Case',data:renos.map(r=>r.worst),
-         backgroundColor:renos.map(r=>r.type==='must'?mustCol.worst:wantCol.worst),
-         borderColor:renos.map(r=>r.type==='must'?'#dc2626':'#a855f7'),borderWidth:1.5},
+        {label:'Best Case', data:active.map(r=>r.best),
+         backgroundColor:active.map(r=>r.type==='must'?mustCol.best:wantCol.best),
+         borderColor:active.map(r=>r.type==='must'?'#22c55e':'#3b82f6'),borderWidth:1.5},
+        {label:'Average',   data:active.map(r=>(r.best+r.worst)/2),
+         backgroundColor:active.map(r=>r.type==='must'?mustCol.avg:wantCol.avg),
+         borderColor:active.map(r=>r.type==='must'?'#22c55e':'#3b82f6'),borderWidth:1.5},
+        {label:'Worst Case',data:active.map(r=>r.worst),
+         backgroundColor:active.map(r=>r.type==='must'?mustCol.worst:wantCol.worst),
+         borderColor:active.map(r=>r.type==='must'?'#dc2626':'#a855f7'),borderWidth:1.5},
       ],
     },
     options:{
@@ -768,7 +771,7 @@ function drawRenoChart() {
 
 // ─── Renovation CRUD ─────────────────────────────────────────────────────────
 function addReno(name='',type='must',best=0,worst=0) {
-  renos.push({id:++rid,name,type,best,worst});
+  renos.push({id:++rid,name,type,best,worst,enabled:true});
   renderRenos(); recalc(); save();
   const rows=$('renoBody').querySelectorAll('tr');
   if (rows.length) rows[rows.length-1].querySelector('input[type="text"]')?.focus();
@@ -777,9 +780,10 @@ function addReno(name='',type='must',best=0,worst=0) {
 function delReno(id) { renos=renos.filter(r=>r.id!==id); renderRenos(); recalc(); save(); }
 
 function updReno(id,f,v) {
-  const r=renos.find(r=>r.id===id); if(r) r[f]=f==='type'?v:+v||r[f];
-  // name is text, not number
-  if(f==='name') r[f]=v;
+  const r=renos.find(r=>r.id===id); if(!r) return;
+  if (f==='name'||f==='type') r[f]=v;
+  else if (f==='enabled') r[f]=v;
+  else r[f]=+v||0;
   recalc(); save();
 }
 
@@ -787,10 +791,16 @@ function renderRenos() {
   const body=$('renoBody'), empty=$('renoEmpty');
   if (!renos.length) { body.innerHTML=''; empty.style.display='block'; return; }
   empty.style.display='none';
-  body.innerHTML=renos.map(r=>`
-    <tr>
-      <td><input type="text" value="${esc(r.name)}" placeholder="Item name"
-                 onchange="updReno(${r.id},'name',this.value)" style="min-width:110px"></td>
+  body.innerHTML=renos.map(r=>{
+    const on=r.enabled!==false;
+    return `
+    <tr style="${on?'':'opacity:0.4'}">
+      <td style="padding-left:12px;width:32px">
+        <input type="checkbox" ${on?'checked':''} onchange="updReno(${r.id},'enabled',this.checked)"
+               style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent)">
+      </td>
+      <td style="padding-left:8px"><input type="text" value="${esc(r.name)}" placeholder="Item name"
+                 onchange="updReno(${r.id},'name',this.value)" style="min-width:120px"></td>
       <td><select onchange="updReno(${r.id},'type',this.value)">
         <option value="must" ${r.type==='must'?'selected':''}>Must</option>
         <option value="want" ${r.type==='want'?'selected':''}>Want</option>
@@ -798,7 +808,8 @@ function renderRenos() {
       <td><input type="number" value="${r.best}" min="0" step="500" onchange="updReno(${r.id},'best',this.value)"></td>
       <td><input type="number" value="${r.worst}"min="0" step="500" onchange="updReno(${r.id},'worst',this.value)"></td>
       <td><button class="btn btn-del" onclick="delReno(${r.id})">×</button></td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 }
 
 // ─── Valuation CRUD ───────────────────────────────────────────────────────────
